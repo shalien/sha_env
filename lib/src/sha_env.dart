@@ -1,114 +1,53 @@
 import 'dart:collection';
 import 'dart:io';
 
-import 'package:path/path.dart';
+import 'package:meta/meta.dart';
 
-/// Singleton
-ShaEnv? _instance;
+const String environmentFilename = '.env';
+const String debugEnvironmentFilename = '.env.debug';
+const String releaseEnvironmentFilename = '.env.release';
+const String profileEnvironmentFilename = '.env.profile';
 
-/// Global [UnmodifiableMapView] hodling the variables
-/// Will be empty if called before `ShaEnv().load()`
-UnmodifiableMapView<String, dynamic> get env => UnmodifiableMapView(_env);
+@immutable
+final class ShaEnv {
+  static ShaEnv? _instance;
 
-/// The hidden map for building the [UnmodifiableMapView]
-final Map<String, dynamic> _env = <String, dynamic>{};
+  final Map<String, String> _env = {};
 
-/// The default file name
-String get _filename => '.env';
+  UnmodifiableMapView<String, String> get env => UnmodifiableMapView(_env);
 
-/// Default extension for `isProduction`
-String get _production => '.production';
+  ShaEnv._();
 
-/// Default extension for `isDebug`
-String get _debug => '.debug';
+  factory ShaEnv() => _instance ??= ShaEnv._();
 
-/// Will handle the loading from the .env file
-class ShaEnv {
-  /// The path for the .env [File] is if isn't in the Dart/Flutter project
-  final String path;
+  Future<void> load() async {
+    File envFile;
 
-  /// if set to true, the file used gonna be .env.production
-  /// Will supersede [isDebug]
-  final bool isProduction;
-
-  /// if set to true, the file used gonna be .env.production
-  final bool isDebug;
-
-  /// if set to true, varaibles from [Platform.environment] will aslo be loaded into our env
-  final bool includePlatformEnvironment;
-
-  /// Private constructor
-  const ShaEnv._(
-      {required this.path,
-      required this.isProduction,
-      required this.isDebug,
-      required this.includePlatformEnvironment});
-
-  factory ShaEnv(
-      {String path = ".",
-      bool isProduction = false,
-      bool isDebug = false,
-      bool includePlatformEnvironment = false}) {
-    return _instance ??= ShaEnv._(
-        path: path,
-        isDebug: isDebug,
-        isProduction: isProduction,
-        includePlatformEnvironment: includePlatformEnvironment);
-  }
-
-  /// Will load the environment variables asynchrosnously
-  Future<bool> load() async {
-    File envFile = File('$path$separator${_formatName()}');
+    if (bool.fromEnvironment('dart.vm.product')) {
+      envFile = File(releaseEnvironmentFilename);
+    } else {
+      envFile = File(debugEnvironmentFilename);
+    }
 
     if (!await envFile.exists()) {
-      throw FileSystemException('File ${envFile.path} nout found !');
+      envFile = File(environmentFilename);
     }
 
-    List<String> lines = await envFile.readAsLines();
-    _fillEnvMap(lines);
-
-    return true;
-  }
-
-  /// Will load the environment variables synchronously
-  bool loadSync() {
-    File envFile = File('$path$separator${_formatName()}');
-
-    if (!envFile.existsSync()) {
-      throw FileSystemException('File ${envFile.path} nout found !');
+    if (!await envFile.exists()) {
+      throw Exception('Environment file not found !');
     }
 
-    List<String> lines = envFile.readAsLinesSync();
-    _fillEnvMap(lines);
+    final List<String> lines = await envFile.readAsLines();
 
-    return true;
-  }
-
-  /// Format the file name
-  String _formatName() {
-    if (isProduction) {
-      return '$_filename$_production';
+    for (final String line in lines) {
+      if (line.isNotEmpty && !line.startsWith('#')) {
+        final List<String> parts = line.split('=');
+        if (parts.length == 2) {
+          _env[parts[0]] = parts[1];
+        }
+      }
     }
 
-    if (isDebug) {
-      return '$_filename$_debug';
-    }
-
-    return _filename;
-  }
-
-  /// Shorthand for mapping the values
-  void _fillEnvMap(List<String> lines) {
-    for (String line in lines.map((e) => e.trim())) {
-      List<String> lineSplitted = line.split('=');
-      String key = lineSplitted.first;
-      String values = lineSplitted.getRange(1, lineSplitted.length).join('=');
-
-      _env[key] = values;
-    }
-
-    if (includePlatformEnvironment) {
-      _env.addAll(Platform.environment);
-    }
+    _env.addAll(Platform.environment);
   }
 }

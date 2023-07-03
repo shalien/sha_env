@@ -1,22 +1,22 @@
-import 'package:sha_env/src/sha_env.dart';
+import 'package:sha_env/sha_env.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('Testing shaenv loading', () {
-    setUp(() async {
-      await ShaEnv().load();
-    });
+  test('Testing Dart running mode', () {
+    bool isDartVM = bool.fromEnvironment('dart.vm.product');
 
-    test('Print all Env from platform', () {
-      const bool isProduction = bool.fromEnvironment('dart.vm.product');
+    expect(isDartVM, true);
+  });
 
-      print(isProduction);
+  test('Getting URL from env', () async {
+    try {
+      await load();
+    } catch (e) {
+      print(e);
+    }
 
-      env.forEach((key, value) {
-        print("$key $value");
-      });
+    final String url = env['URL']!;
 
-      assert(isProduction, true);
-    });
+    expect(url, 'https://ulr.com?ejkehe');
   });
 }
